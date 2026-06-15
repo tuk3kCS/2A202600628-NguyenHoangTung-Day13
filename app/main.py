@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import os
+from dotenv import load_dotenv
+load_dotenv()
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -8,7 +10,7 @@ from structlog.contextvars import bind_contextvars
 
 from .agent import LabAgent
 from .incidents import disable, enable, status
-from .logging_config import configure_logging, get_logger
+from .logging_config import configure_logging, get_logger, log_audit
 from .metrics import record_error, snapshot
 from .middleware import CorrelationIdMiddleware
 from .pii import hash_user_id, summarize_text
@@ -44,8 +46,30 @@ async def metrics() -> dict:
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat(request: Request, body: ChatRequest) -> ChatResponse:
-    # TODO: Enrich logs with request context (user_id_hash, session_id, feature, model, env)
-    # bind_contextvars(...)
+    user_id_hash = hash_user_id(body.user_id)
+    # Cost optimization: route 'summary' feature requests to claude-haiku-4-5
+    active_model = "claude-haiku-4-5" if body.feature == "summary" else agent.model
+    
+    # Enrich logs with request context (user_id_hash, session_id, feature, model, env)
+    bind_contextvars(
+        user_id_hash=user_id_hash,
+        session_id=body.session_id,
+        feature=body.feature,
+        model=active_model,
+        env=os.getenv("APP_ENV", "dev"),
+    )
+    
+    # Write separate audit log entry
+    log_audit(
+        event="chat_request",
+        user=user_id_hash,
+        correlation_id=request.state.correlation_id,
+        payload={
+            "feature": body.feature,
+            "session_id": body.session_id,
+            "message_preview": summarize_text(body.message)
+        }
+    )
     
     log.info(
         "request_received",
@@ -58,11 +82,13 @@ async def chat(request: Request, body: ChatRequest) -> ChatResponse:
             feature=body.feature,
             session_id=body.session_id,
             message=body.message,
+            model=active_model,
         )
         log.info(
             "response_sent",
             service="api",
             latency_ms=result.latency_ms,
+            ttft_ms=result.ttft_ms,
             tokens_in=result.tokens_in,
             tokens_out=result.tokens_out,
             cost_usd=result.cost_usd,
@@ -93,6 +119,12 @@ async def chat(request: Request, body: ChatRequest) -> ChatResponse:
 async def enable_incident(name: str) -> JSONResponse:
     try:
         enable(name)
+        log_audit(
+            event="incident_enabled",
+            user="admin",
+            correlation_id="control-plane",
+            payload={"incident_name": name}
+        )
         log.warning("incident_enabled", service="control", payload={"name": name})
         return JSONResponse({"ok": True, "incidents": status()})
     except KeyError as exc:
@@ -103,6 +135,12 @@ async def enable_incident(name: str) -> JSONResponse:
 async def disable_incident(name: str) -> JSONResponse:
     try:
         disable(name)
+        log_audit(
+            event="incident_disabled",
+            user="admin",
+            correlation_id="control-plane",
+            payload={"incident_name": name}
+        )
         log.warning("incident_disabled", service="control", payload={"name": name})
         return JSONResponse({"ok": True, "incidents": status()})
     except KeyError as exc:

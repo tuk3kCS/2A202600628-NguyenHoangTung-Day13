@@ -38,3 +38,16 @@
   - shorten prompts
   - route easy requests to cheaper model
   - apply prompt cache
+
+## 4. Daily budget exceeded
+- Severity: P1
+- Trigger: `daily_cost_usd > 2.5 for 1d`
+- Impact: total cost breaches hard daily budget
+- First checks:
+  1. Audit daily logs and model distributions
+  2. Find power users with high prompt length or token output
+  3. Verify if semantic cache and prompt caching is functional
+- Mitigation:
+  - Apply stricter rate limiting per user
+  - Increase prompt caching threshold
+  - Enforce max tokens limits on LLM generation

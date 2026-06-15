@@ -17,3 +17,9 @@ alerts:
     type: symptom-based
     owner: finops-owner
     runbook: docs/alerts.md#3-cost-budget-spike
+  - name: daily_budget_exceeded
+    severity: P1
+    condition: daily_cost_usd > 2.5 for 1d
+    type: cost-based
+    owner: finops-owner
+    runbook: docs/alerts.md#4-daily-budget-exceeded
