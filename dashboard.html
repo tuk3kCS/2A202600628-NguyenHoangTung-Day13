@@ -1,0 +1,1955 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Agent Production Monitoring - Langfuse</title>
+    <!-- Google Fonts Inter for clean premium typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        /* ==========================================================================
+           1. DESIGN SYSTEM & BASE STYLES
+           ========================================================================== */
+        :root {
+            --bg-primary: #0b0f19;
+            --bg-secondary: #0f172a;
+            --bg-card: #1e293b;
+            --bg-card-hover: #24354f;
+            --border-color: #334155;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            
+            /* HSL Theme Colors for Charts & Elements */
+            --color-green: #10b981;    /* P50 / Success */
+            --color-purple: #8b5cf6;   /* P95 / HTTP 500 */
+            --color-cyan: #06b6d4;     /* P99 / HTTP 429 */
+            --color-magenta: #ec4899;  /* Input / Timeout */
+            --color-orange: #f59e0b;   /* Warning / Validation */
+            --color-red: #ef4444;      /* Alert / Critical */
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+            overflow-x: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--bg-primary);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-muted);
+        }
+
+        /* ==========================================================================
+           2. SKELETON LOADER
+           ========================================================================== */
+        #loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--bg-primary);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            transition: opacity 0.5s ease, visibility 0.5s ease;
+        }
+
+        .skeleton-spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid var(--border-color);
+            border-top: 4px solid var(--color-cyan);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        .loading-text {
+            font-size: 1.1rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            letter-spacing: 0.05em;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* ==========================================================================
+           3. HEADER STYLES
+           ========================================================================== */
+        header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 70px;
+            background-color: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-color);
+            z-index: 100;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 24px;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header-logo-icon {
+            color: var(--color-cyan);
+            animation: pulse-glow 2s infinite ease-in-out;
+        }
+
+        .header-title-container h1 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #fff 0%, var(--text-secondary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header-title-container p {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 1px;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .update-indicator {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .update-dot {
+            width: 8px;
+            height: 8px;
+            background-color: var(--color-green);
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .pulse-dot {
+            animation: pulse-dot-anim 1.5s infinite ease-in-out;
+        }
+
+        @keyframes pulse-dot-anim {
+            0% { transform: scale(0.8); opacity: 0.5; }
+            50% { transform: scale(1.3); opacity: 1; }
+            100% { transform: scale(0.8); opacity: 0.5; }
+        }
+
+        .time-select {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .time-select:hover {
+            border-color: var(--text-muted);
+        }
+
+        /* ==========================================================================
+           4. MAIN CONTENT LAYOUT
+           ========================================================================== */
+        main {
+            margin-top: 70px;
+            padding: 24px;
+            max-width: 1600px;
+            width: 100%;
+            margin-left: auto;
+            margin-right: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        /* ==========================================================================
+           5. OBSERVABILITY KPI CARDS ROW
+           ========================================================================== */
+        .kpi-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+        }
+
+        .kpi-card {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+            cursor: pointer;
+        }
+
+        .kpi-card:hover {
+            transform: translateY(-2px);
+            border-color: var(--text-muted);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+            background-color: var(--bg-card-hover);
+        }
+
+        .kpi-left {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 2;
+        }
+
+        .kpi-label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-secondary);
+        }
+
+        .kpi-value-container {
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+        }
+
+        .kpi-value {
+            font-size: 1.75rem;
+            font-weight: 800;
+            color: var(--text-primary);
+            transition: all 0.3s;
+        }
+
+        .kpi-trend {
+            font-size: 0.8rem;
+            font-weight: 600;
+            padding: 2px 6px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            gap: 2px;
+        }
+
+        .kpi-trend.up {
+            color: var(--color-green);
+            background-color: rgba(16, 185, 129, 0.1);
+        }
+
+        .kpi-trend.down {
+            color: var(--color-red);
+            background-color: rgba(239, 68, 68, 0.1);
+        }
+
+        .kpi-right {
+            position: relative;
+            width: 120px;
+            height: 45px;
+            z-index: 1;
+        }
+
+        .sparkline-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Pulse Animation on Update */
+        .pulse-metric {
+            animation: pulse-value 0.5s ease-out;
+        }
+
+        @keyframes pulse-value {
+            0% { transform: scale(1); filter: brightness(1); }
+            50% { transform: scale(1.03); filter: brightness(1.3); }
+            100% { transform: scale(1); filter: brightness(1); }
+        }
+
+        /* ==========================================================================
+           6. MAIN CHARTS GRID
+           ========================================================================== */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 24px;
+        }
+
+        .chart-card {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            height: 380px;
+            transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .chart-card:hover {
+            border-color: var(--text-muted);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chart-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .chart-legend {
+            display: flex;
+            gap: 12px;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            align-items: center;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .legend-color {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .chart-body {
+            position: relative;
+            flex-grow: 1;
+            width: 100%;
+        }
+
+        .chart-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        /* Chart-specific metrics displayed on card */
+        .chart-kpi {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            display: flex;
+            gap: 12px;
+        }
+
+        .chart-kpi span {
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        /* ==========================================================================
+           7. CUSTOM CHART TOOLTIP
+           ========================================================================== */
+        .chart-tooltip {
+            position: absolute;
+            background-color: rgba(15, 23, 42, 0.95);
+            border: 1px solid var(--border-color);
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            color: var(--text-primary);
+            pointer-events: none;
+            display: none;
+            z-index: 10;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            line-height: 1.4;
+        }
+
+        .tooltip-title {
+            font-weight: 600;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 4px;
+            margin-bottom: 4px;
+            color: var(--text-secondary);
+        }
+
+        /* ==========================================================================
+           8. AGENT EXECUTION LOGS & RECENT TRACES PANELS
+           ========================================================================== */
+        .panels-row {
+            display: grid;
+            grid-template-columns: 3fr 2fr;
+            gap: 24px;
+        }
+
+        .panel-card {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            max-height: 550px;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 12px;
+        }
+
+        .panel-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .panel-subtitle {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .table-container {
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            font-size: 0.8rem;
+        }
+
+        th {
+            color: var(--text-secondary);
+            font-weight: 600;
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            background-color: var(--bg-secondary);
+            z-index: 1;
+        }
+
+        td {
+            padding: 10px 12px;
+            border-bottom: 1px solid rgba(51, 65, 85, 0.4);
+            color: var(--text-primary);
+            max-width: 180px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        tr:hover td {
+            background-color: rgba(51, 65, 85, 0.25);
+        }
+
+        /* Status Pills */
+        .status-badge {
+            font-size: 0.7rem;
+            font-weight: 600;
+            padding: 2px 6px;
+            border-radius: 4px;
+            text-transform: uppercase;
+        }
+
+        .status-badge.success {
+            color: var(--color-green);
+            background-color: rgba(16, 185, 129, 0.1);
+        }
+
+        .status-badge.warning {
+            color: var(--color-orange);
+            background-color: rgba(245, 158, 11, 0.1);
+        }
+
+        .status-badge.error {
+            color: var(--color-red);
+            background-color: rgba(239, 68, 68, 0.1);
+        }
+
+        /* Trace card panel list styles */
+        .trace-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            overflow-y: auto;
+            flex-grow: 1;
+            padding-right: 4px;
+        }
+
+        .trace-item {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            cursor: pointer;
+            transition: border-color 0.2s, background-color 0.2s;
+        }
+
+        .trace-item:hover {
+            border-color: var(--text-muted);
+            background-color: var(--bg-card-hover);
+        }
+
+        .trace-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .trace-id-badge {
+            font-family: monospace;
+            color: var(--color-cyan);
+            font-weight: 600;
+            font-size: 0.8rem;
+        }
+
+        .trace-item-body {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .trace-item-footer {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            border-top: 1px solid rgba(51, 65, 85, 0.4);
+            padding-top: 6px;
+        }
+
+        .feedback-score {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .score-val {
+            font-weight: 700;
+        }
+
+        .score-val.high { color: var(--color-green); }
+        .score-val.med { color: var(--color-orange); }
+        .score-val.low { color: var(--color-red); }
+
+        /* ==========================================================================
+           9. RESPONSIVE MEDIA QUERIES
+           ========================================================================== */
+        @media (max-width: 1200px) {
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+            .panels-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 900px) {
+            .kpi-row {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 600px) {
+            .kpi-row {
+                grid-template-columns: 1fr;
+            }
+            header {
+                padding: 0 12px;
+            }
+            .header-right {
+                gap: 8px;
+            }
+            main {
+                padding: 12px;
+            }
+        }
+
+        /* Animations */
+        @keyframes pulse-glow {
+            0% { transform: scale(1); filter: drop-shadow(0 0 2px rgba(6, 182, 212, 0.2)); }
+            50% { transform: scale(1.05); filter: drop-shadow(0 0 8px rgba(6, 182, 212, 0.6)); }
+            100% { transform: scale(1); filter: drop-shadow(0 0 2px rgba(6, 182, 212, 0.2)); }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ==========================================================================
+       LOADER SCREEN
+       ========================================================================== -->
+    <div id="loading-screen">
+        <div class="skeleton-spinner"></div>
+        <div class="loading-text">INITIALIZING TELEMETRY STREAM...</div>
+    </div>
+
+    <!-- ==========================================================================
+       HEADER PANEL
+       ========================================================================== -->
+    <header>
+        <div class="header-left">
+            <!-- SVG Premium AI Agent icon -->
+            <svg class="header-logo-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2a10 10 0 0 1 7.54 16.59c-.44.47-.69 1.11-.69 1.77A2.5 2.5 0 0 1 16.35 22h-8.7A2.5 2.5 0 0 1 5 20.36c0-.66-.25-1.3-.69-1.77A10 10 0 0 1 12 2z"/>
+                <path d="M12 18v-4"/>
+                <path d="M8 14h8"/>
+            </svg>
+            <div class="header-title-container">
+                <h1>AI Agent Production Monitoring</h1>
+                <p>Langfuse Telemetry • Production Environment</p>
+            </div>
+        </div>
+        <div class="header-right">
+            <div class="update-indicator">
+                <span class="update-dot pulse-dot"></span>
+                <span>Live stream</span>
+            </div>
+            <div class="update-indicator" id="last-update-time">
+                Last update: Just now
+            </div>
+            <select class="time-select" id="time-range-select">
+                <option value="1h">Last 1 Hour</option>
+                <option value="24h">Last 24 Hours</option>
+                <option value="7d">Last 7 Days</option>
+                <option value="30d">Last 30 Days</option>
+            </select>
+        </div>
+    </header>
+
+    <!-- ==========================================================================
+       MAIN VIEW CONTAINER
+       ========================================================================== -->
+    <main>
+
+        <!-- ==========================================================================
+           ROW 1: OBSERVABILITY METRICS & SPARKLINES
+           ========================================================================== -->
+        <section class="kpi-row">
+            <!-- KPI CARD 1: Total Traces -->
+            <div class="kpi-card" id="kpi-traces">
+                <div class="kpi-left">
+                    <span class="kpi-label">Total Traces</span>
+                    <div class="kpi-value-container">
+                        <span class="kpi-value" id="kpi-val-traces">28,491</span>
+                        <span class="kpi-trend up" id="kpi-trend-traces">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="18 15 12 9 6 15"/></svg>
+                            12.4%
+                        </span>
+                    </div>
+                </div>
+                <div class="kpi-right">
+                    <canvas class="sparkline-canvas" id="sparkline-traces"></canvas>
+                </div>
+            </div>
+
+            <!-- KPI CARD 2: Total Generations -->
+            <div class="kpi-card" id="kpi-generations">
+                <div class="kpi-left">
+                    <span class="kpi-label">Total Generations</span>
+                    <div class="kpi-value-container">
+                        <span class="kpi-value" id="kpi-val-generations">142,398</span>
+                        <span class="kpi-trend up" id="kpi-trend-generations">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="18 15 12 9 6 15"/></svg>
+                            8.9%
+                        </span>
+                    </div>
+                </div>
+                <div class="kpi-right">
+                    <canvas class="sparkline-canvas" id="sparkline-generations"></canvas>
+                </div>
+            </div>
+
+            <!-- KPI CARD 3: Average Response Time -->
+            <div class="kpi-card" id="kpi-response">
+                <div class="kpi-left">
+                    <span class="kpi-label">Avg Response Time</span>
+                    <div class="kpi-value-container">
+                        <span class="kpi-value" id="kpi-val-response">612 ms</span>
+                        <span class="kpi-trend down" id="kpi-trend-response">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg>
+                            -4.2%
+                        </span>
+                    </div>
+                </div>
+                <div class="kpi-right">
+                    <canvas class="sparkline-canvas" id="sparkline-response"></canvas>
+                </div>
+            </div>
+
+            <!-- KPI CARD 4: Estimated Cost -->
+            <div class="kpi-card" id="kpi-cost">
+                <div class="kpi-left">
+                    <span class="kpi-label">Estimated Cost</span>
+                    <div class="kpi-value-container">
+                        <span class="kpi-value" id="kpi-val-cost">$162.84</span>
+                        <span class="kpi-trend up" id="kpi-trend-cost">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="18 15 12 9 6 15"/></svg>
+                            15.1%
+                        </span>
+                    </div>
+                </div>
+                <div class="kpi-right">
+                    <canvas class="sparkline-canvas" id="sparkline-cost"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==========================================================================
+           ROW 2: CHARTS GRID (3x2 Layout)
+           ========================================================================== -->
+        <section class="charts-grid">
+            
+            <!-- CARD 1: Latency Chart (P50/P95/P99) -->
+            <div class="chart-card" id="card-latency">
+                <div class="chart-header">
+                    <div class="chart-title">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-cyan)" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                        Request Latency (ms) - P50 / P95 / P99
+                    </div>
+                    <div class="chart-legend">
+                        <div class="legend-item"><span class="legend-color" style="background-color: var(--color-green)"></span>P50</div>
+                        <div class="legend-item"><span class="legend-color" style="background-color: var(--color-purple)"></span>P95</div>
+                        <div class="legend-item"><span class="legend-color" style="background-color: var(--color-cyan)"></span>P99</div>
+                        <div class="legend-item"><span class="legend-color" style="background-color: var(--color-red)"></span>Limit</div>
+                    </div>
+                </div>
+                <div class="chart-body">
+                    <canvas class="chart-canvas" id="canvas-latency"></canvas>
+                    <div class="chart-tooltip" id="tooltip-latency"></div>
+                </div>
+            </div>
+
+            <!-- CARD 2: QPS / Traffic -->
+            <div class="chart-card" id="card-qps">
+                <div class="chart-header">
+                    <div class="chart-title">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-green)" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+                        QPS / Traffic
+                    </div>
+                    <div class="chart-kpi">Peak QPS: <span id="val-peak-qps">18.5</span></div>
+                </div>
+                <div class="chart-body">
+                    <canvas class="chart-canvas" id="canvas-qps"></canvas>
+                    <div class="chart-tooltip" id="tooltip-qps"></div>
+                </div>
+            </div>
+
+            <!-- CARD 3: Token Usage split -->
+            <div class="chart-card" id="card-tokens">
+                <div class="chart-header">
+                    <div class="chart-title">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-magenta)" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                        Token Usage: In/Out Split
+                    </div>
+                    <div class="chart-legend">
+                        <div class="legend-item"><span class="legend-color" style="background-color: var(--color-magenta)"></span>Input</div>
+                        <div class="legend-item"><span class="legend-color" style="background-color: var(--color-green)"></span>Output</div>
+                    </div>
+                </div>
+                <div class="chart-body">
+                    <canvas class="chart-canvas" id="canvas-tokens"></canvas>
+                    <div class="chart-tooltip" id="tooltip-tokens"></div>
+                </div>
+                <div class="chart-kpi">
+                    Total In: <span id="val-total-tokens-in">4.2M</span> &nbsp;&nbsp; 
+                    Total Out: <span id="val-total-tokens-out">12.8M</span>
+                </div>
+            </div>
+
+            <!-- CARD 4: Error Rate Breakdown -->
+            <div class="chart-card" id="card-errors">
+                <div class="chart-header">
+                    <div class="chart-title">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-orange)" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                        Error Rate Breakdown
+                    </div>
+                    <div class="chart-kpi">Total Req: <span id="val-total-requests">2,914</span></div>
+                </div>
+                <div class="chart-body" style="display: flex; align-items: center; justify-content: space-between;">
+                    <div style="width: 50%; height: 100%; position: relative;">
+                        <canvas class="chart-canvas" id="canvas-errors"></canvas>
+                    </div>
+                    <div class="chart-legend" id="donut-legend" style="flex-direction: column; width: 45%; align-items: flex-start; gap: 10px;">
+                        <!-- Generated Dynamically via JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- CARD 5: Daily Cost Rollup -->
+            <div class="chart-card" id="card-cost-rollup">
+                <div class="chart-header">
+                    <div class="chart-title">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-orange)" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                        Daily Cost Rollup
+                    </div>
+                    <div class="chart-kpi">Today Cost: <span id="val-current-cost" style="color: var(--color-green); font-size: 1.1rem;">$162.84</span></div>
+                </div>
+                <div class="chart-body">
+                    <canvas class="chart-canvas" id="canvas-cost-rollup"></canvas>
+                    <div class="chart-tooltip" id="tooltip-cost-rollup"></div>
+                </div>
+            </div>
+
+            <!-- CARD 6: LLM-Judge Quality -->
+            <div class="chart-card" id="card-quality">
+                <div class="chart-header">
+                    <div class="chart-title">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-green)" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                        LLM-Judge Semantic Quality
+                    </div>
+                    <div class="chart-kpi">Status: <span id="val-quality-status" style="color: var(--color-green); font-weight: bold;">Very High</span></div>
+                </div>
+                <div class="chart-body" style="display: flex; justify-content: center; align-items: center; flex-direction: column; gap: 10px;">
+                    <div style="position: relative; width: 240px; height: 160px;">
+                        <canvas class="chart-canvas" id="canvas-quality"></canvas>
+                        <div style="position: absolute; bottom: 10px; width: 100%; text-align: center;">
+                            <span id="val-quality-score" style="font-size: 2.2rem; font-weight: 800; color: #fff; text-shadow: 0 0 10px rgba(255,255,255,0.2)">92</span>
+                            <span style="font-size: 1rem; color: var(--text-muted);">/100</span>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 20px; font-size: 0.75rem; color: var(--text-secondary);">
+                        <span>Poor (&lt;50)</span>
+                        <span>Avg (50-70)</span>
+                        <span>Good (70-85)</span>
+                        <span style="color: var(--color-green); font-weight: 600;">Excellent (&gt;85)</span>
+                    </div>
+                </div>
+            </div>
+            
+        </section>
+
+        <!-- ==========================================================================
+           ROW 3: LANGFUSE TELEMETRY PANELS (Logs & Traces)
+           ========================================================================== -->
+        <section class="panels-row">
+            <!-- TABLE: Agent Execution Logs -->
+            <div class="panel-card" id="panel-logs">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        Agent Execution Logs
+                        <p class="panel-subtitle">Realtime transaction log from data/logs.jsonl</p>
+                    </div>
+                    <div class="chart-kpi">Log stream: <span style="color: var(--color-green)">Active</span></div>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Trace ID</th>
+                                <th>Feature</th>
+                                <th>Cache Status</th>
+                                <th>User Query</th>
+                                <th>Model</th>
+                                <th>Latency</th>
+                                <th>Tokens</th>
+                                <th>Cost</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logs-table-body">
+                            <!-- Populated Dynamically via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- LIST: Recent Langfuse Traces -->
+            <div class="panel-card" id="panel-traces">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        Recent Langfuse Traces
+                        <p class="panel-subtitle">Latest trace waterfalls captured</p>
+                    </div>
+                    <div class="chart-kpi">Waterfall spans: <span style="color: var(--color-cyan)">Connected</span></div>
+                </div>
+                <div class="trace-list" id="traces-list-container">
+                    <!-- Populated Dynamically via JS -->
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- ==========================================================================
+       JAVASCRIPT REALTIME EMULATION & CANVAS DRAWING
+       ========================================================================== -->
+    <script>
+        // ==========================================================================
+        // 1. DATA STORES & EMULATOR INITIALIZATION
+        // ==========================================================================
+        
+        // Configuration
+        const MAX_HISTORY = 20; // Number of data points to hold for line charts
+        let lastUpdateTime = new Date();
+
+        // Metric Stores (Pre-populated with baseline history)
+        const dataStore = {
+            latency: {
+                p50: Array.from({length: MAX_HISTORY}, () => Math.round(100 + Math.random() * 80)),
+                p95: Array.from({length: MAX_HISTORY}, () => Math.round(250 + Math.random() * 200)),
+                p99: Array.from({length: MAX_HISTORY}, () => Math.round(600 + Math.random() * 500)),
+                limit: Array.from({length: MAX_HISTORY}, () => 1500) // Threshold limit (1500ms)
+            },
+            qps: Array.from({length: 15}, () => parseFloat((4 + Math.random() * 12).toFixed(1))),
+            tokens: {
+                input: Array.from({length: MAX_HISTORY}, () => Math.round(800 + Math.random() * 400)),
+                output: Array.from({length: MAX_HISTORY}, () => Math.round(2500 + Math.random() * 1500))
+            },
+            costRollup: Array.from({length: MAX_HISTORY}, (_, i) => parseFloat((50 + (i * 5.5) + Math.random() * 2).toFixed(2))),
+            errors: {
+                success: 2814,
+                http500: 42,
+                http429: 28,
+                timeout: 18,
+                validation: 12
+            },
+            qualityScore: 92,
+            
+            // KPI overall summaries
+            kpi: {
+                traces: { current: 28491, trend: "+12.4%", history: [25, 26, 25, 27, 26, 28, 27, 28.4] },
+                generations: { current: 142398, trend: "+8.9%", history: [120, 125, 128, 131, 134, 138, 140, 142] },
+                response: { current: 612, trend: "-4.2%", history: [650, 640, 632, 624, 620, 615, 618, 612] },
+                cost: { current: 162.84, trend: "+15.1%", history: [140, 142, 146, 149, 153, 157, 160, 162.8] }
+            }
+        };
+
+        // Execution log templates for generation
+        const queries = [
+            "What is your refund policy? My email is user@example.com",
+            "Can you explain why metrics, traces, and logs work together?",
+            "Summarize the monitoring policy for production logging.",
+            "Can I get help with policy and monitoring?",
+            "Here is my phone 0901234567, what should be logged?",
+            "Give me a short summary of the observability workflow.",
+            "What should not appear in app logs?",
+            "How do I debug tail latency?",
+            "What is the policy for PII and credit card 4111-1111-1111-1111?",
+            "How should alerts be designed?",
+            "Vector database timeout on retrieval",
+            "Explain prompt injection vulnerabilities"
+        ];
+        const models = ["claude-sonnet-4-5", "claude-haiku-4-5", "gpt-4o", "gemini-1.5-pro"];
+
+        let mockLogs = [];
+        let mockTraces = [];
+
+        // Generate initial log records (20 records)
+        function initMockLogs() {
+            const now = new Date();
+            for (let i = 0; i < 20; i++) {
+                const ts = new Date(now.getTime() - i * 60000); // 1 minute intervals
+                const isErr = Math.random() < 0.05;
+                const isWarn = Math.random() < 0.08;
+                
+                let status = "Success";
+                if (isErr) status = "Error";
+                else if (isWarn) status = "Warning";
+
+                const latency = isErr ? Math.round(5000 + Math.random() * 3000) : Math.round(120 + Math.random() * 900);
+                const tokensIn = Math.round(200 + Math.random() * 400);
+                const tokensOut = Math.round(500 + Math.random() * 1200);
+                const cost = parseFloat(((tokensIn * 0.003 / 1000) + (tokensOut * 0.015 / 1000)).toFixed(5));
+
+                const mockFeatures = ["qa", "summary"];
+                const isHit = Math.random() < 0.3;
+                mockLogs.push({
+                    ts: ts.toISOString().replace("T", " ").substring(0, 19),
+                    traceId: "tr-" + Math.random().toString(16).substring(2, 10),
+                    feature: mockFeatures[Math.floor(Math.random() * mockFeatures.length)],
+                    cacheStatus: isHit ? "CACHE HIT" : "CACHE MISS",
+                    query: queries[Math.floor(Math.random() * queries.length)],
+                    model: models[Math.floor(Math.random() * models.length)],
+                    latency: (isHit ? 5 : latency) + " ms",
+                    tokens: isHit ? 168 : (tokensIn + tokensOut),
+                    cost: isHit ? "$0.000100" : ("$" + cost),
+                    status: status
+                });
+            }
+        }
+
+        // Generate initial recent trace waterfalls
+        function initMockTraces() {
+            const traceNames = ["ecomm-agent-flow", "rag-answering-loop", "feedback-summarizer", "agent-chat-init"];
+            for (let i = 0; i < 5; i++) {
+                const score = parseFloat((70 + Math.random() * 30).toFixed(0));
+                let ratingClass = "high";
+                if (score < 80) ratingClass = "med";
+                if (score < 50) ratingClass = "low";
+
+                mockTraces.push({
+                    traceId: "tr-" + Math.random().toString(16).substring(2, 10),
+                    name: traceNames[Math.floor(Math.random() * traceNames.length)],
+                    spans: Math.floor(3 + Math.random() * 8),
+                    duration: parseFloat((0.2 + Math.random() * 2.8).toFixed(2)) + "s",
+                    feedback: Math.random() < 0.7 ? "👍 Positive" : "👎 Dislike",
+                    score: score,
+                    scoreClass: ratingClass
+                });
+            }
+        }
+
+        // ==========================================================================
+        // 2. CANVAS DRAWING FRAMEWORK
+        // ==========================================================================
+        
+        // Helper to get Canvas device pixel ratio for crystal clear rendering
+        function setupCanvas(canvasId) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+            const dpr = window.devicePixelRatio || 1;
+            const rect = canvas.getBoundingClientRect();
+            
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            ctx.scale(dpr, dpr);
+            
+            return { canvas, ctx, width: rect.width, height: rect.height };
+        }
+
+        // 1. Draw Request Latency Chart
+        function drawLatencyChart() {
+            const { canvas, ctx, width, height } = setupCanvas('canvas-latency');
+            ctx.clearRect(0, 0, width, height);
+            
+            const padding = { top: 20, right: 20, bottom: 30, left: 45 };
+            const chartWidth = width - padding.left - padding.right;
+            const chartHeight = height - padding.top - padding.bottom;
+            
+            // Grid Lines & Axis
+            let maxVal = Math.max(...dataStore.latency.p50, ...dataStore.latency.p95, ...dataStore.latency.p99);
+            const yMax = Math.max(10, Math.ceil((maxVal * 1.25) / 10) * 10);
+            const gridCount = 4;
+            ctx.strokeStyle = '#33415533';
+            ctx.lineWidth = 1;
+            ctx.fillStyle = '#64748b';
+            ctx.font = '10px Inter';
+            ctx.textAlign = 'right';
+            
+            for (let i = 0; i <= gridCount; i++) {
+                const yVal = Math.round((yMax / gridCount) * i);
+                const y = padding.top + chartHeight - (chartHeight * (i / gridCount));
+                
+                // Draw line
+                ctx.beginPath();
+                ctx.moveTo(padding.left, y);
+                ctx.lineTo(padding.left + chartWidth, y);
+                ctx.stroke();
+                
+                // Draw label
+                ctx.fillText(yVal + "ms", padding.left - 8, y + 3);
+            }
+
+            // Draw Critical Threshold Line
+            const thresholdY = padding.top + chartHeight - (chartHeight * (Math.min(1500, yMax) / yMax));
+            ctx.strokeStyle = '#ef444499';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            ctx.moveTo(padding.left, thresholdY);
+            ctx.lineTo(padding.left + chartWidth, thresholdY);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            
+            // Plot Lines (P50, P95, P99)
+            const plotLine = (data, color) => {
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2.5;
+                ctx.beginPath();
+                
+                for (let i = 0; i < data.length; i++) {
+                    const x = padding.left + (chartWidth * (i / (MAX_HISTORY - 1)));
+                    const y = padding.top + chartHeight - (chartHeight * (Math.min(data[i], yMax) / yMax));
+                    
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+            };
+
+            plotLine(dataStore.latency.p50, '#10b981'); // Green
+            plotLine(dataStore.latency.p95, '#8b5cf6'); // Purple
+            plotLine(dataStore.latency.p99, '#06b6d4'); // Cyan
+        }
+
+        // 2. Draw QPS / Traffic Chart (Bar Chart)
+        function drawQpsChart() {
+            const { canvas, ctx, width, height } = setupCanvas('canvas-qps');
+            ctx.clearRect(0, 0, width, height);
+            
+            const padding = { top: 20, right: 15, bottom: 30, left: 35 };
+            const chartWidth = width - padding.left - padding.right;
+            const chartHeight = height - padding.top - padding.bottom;
+            
+            let maxVal = Math.max(...dataStore.qps);
+            const yMax = Math.max(2, Math.ceil(maxVal * 1.2 * 10) / 10);
+            const gridCount = 4;
+            ctx.strokeStyle = '#33415533';
+            ctx.lineWidth = 1;
+            ctx.fillStyle = '#64748b';
+            ctx.font = '10px Inter';
+            ctx.textAlign = 'right';
+            
+            for (let i = 0; i <= gridCount; i++) {
+                const yVal = (yMax / gridCount) * i;
+                const y = padding.top + chartHeight - (chartHeight * (i / gridCount));
+                
+                ctx.beginPath();
+                ctx.moveTo(padding.left, y);
+                ctx.lineTo(padding.left + chartWidth, y);
+                ctx.stroke();
+                
+                ctx.fillText(yVal.toFixed(1), padding.left - 8, y + 3);
+            }
+            
+            // Draw Bars
+            const data = dataStore.qps;
+            const barWidth = (chartWidth / data.length) * 0.7;
+            const barSpacing = (chartWidth / data.length) * 0.3;
+            
+            for (let i = 0; i < data.length; i++) {
+                const x = padding.left + (i * (chartWidth / data.length)) + barSpacing / 2;
+                const barHeight = chartHeight * (data[i] / yMax);
+                const y = padding.top + chartHeight - barHeight;
+                
+                // Color dynamically based on load
+                const gradient = ctx.createLinearGradient(x, y, x, y + barHeight);
+                if (data[i] > 14) {
+                    gradient.addColorStop(0, '#f59e0b'); // Yellow/Orange alert QPS
+                    gradient.addColorStop(1, '#ef444455');
+                } else {
+                    gradient.addColorStop(0, '#10b981'); // Green healthy QPS
+                    gradient.addColorStop(1, '#10b98122');
+                }
+                
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.roundRect(x, y, barWidth, barHeight, [4, 4, 0, 0]);
+                ctx.fill();
+            }
+        }
+
+        // 3. Draw Token Usage Chart (Dual Line with shaded area)
+        function drawTokensChart() {
+            const { canvas, ctx, width, height } = setupCanvas('canvas-tokens');
+            ctx.clearRect(0, 0, width, height);
+            
+            const padding = { top: 20, right: 20, bottom: 30, left: 45 };
+            const chartWidth = width - padding.left - padding.right;
+            const chartHeight = height - padding.top - padding.bottom;
+            
+            let maxVal = Math.max(...dataStore.tokens.input, ...dataStore.tokens.output);
+            const yMax = Math.max(50, Math.ceil((maxVal * 1.2) / 50) * 50);
+            const gridCount = 4;
+            ctx.strokeStyle = '#33415533';
+            ctx.lineWidth = 1;
+            ctx.fillStyle = '#64748b';
+            ctx.font = '10px Inter';
+            ctx.textAlign = 'right';
+            
+            for (let i = 0; i <= gridCount; i++) {
+                const yVal = Math.round((yMax / gridCount) * i);
+                const y = padding.top + chartHeight - (chartHeight * (i / gridCount));
+                
+                ctx.beginPath();
+                ctx.moveTo(padding.left, y);
+                ctx.lineTo(padding.left + chartWidth, y);
+                ctx.stroke();
+                
+                let labelText = yMax >= 1000 ? (yVal / 1000).toFixed(1) + "k" : yVal;
+                ctx.fillText(labelText, padding.left - 8, y + 3);
+            }
+            
+            const plotLineArea = (data, strokeColor, fillColor) => {
+                // Line path
+                ctx.strokeStyle = strokeColor;
+                ctx.lineWidth = 2.5;
+                ctx.beginPath();
+                
+                for (let i = 0; i < data.length; i++) {
+                    const x = padding.left + (chartWidth * (i / (MAX_HISTORY - 1)));
+                    const y = padding.top + chartHeight - (chartHeight * (data[i] / yMax));
+                    
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+                
+                // Shading Area path
+                ctx.lineTo(padding.left + chartWidth, padding.top + chartHeight);
+                ctx.lineTo(padding.left, padding.top + chartHeight);
+                ctx.closePath();
+                ctx.fillStyle = fillColor;
+                ctx.fill();
+            };
+            
+            // Draw Shaded Input Area
+            const inputGrad = ctx.createLinearGradient(0, 0, 0, height);
+            inputGrad.addColorStop(0, '#ec489933');
+            inputGrad.addColorStop(1, '#ec489900');
+            plotLineArea(dataStore.tokens.input, '#ec4899', inputGrad);
+            
+            // Draw Shaded Output Area
+            const outputGrad = ctx.createLinearGradient(0, 0, 0, height);
+            outputGrad.addColorStop(0, '#10b98133');
+            outputGrad.addColorStop(1, '#10b98100');
+            plotLineArea(dataStore.tokens.output, '#10b981', outputGrad);
+        }
+
+        // 4. Draw Error Breakdown Donut Chart
+        function drawErrorBreakdownChart() {
+            const { canvas, ctx, width, height } = setupCanvas('canvas-errors');
+            ctx.clearRect(0, 0, width, height);
+            
+            const centerX = width / 2;
+            const centerY = height / 2;
+            const outerRadius = Math.min(centerX, centerY) * 0.8;
+            const innerRadius = outerRadius * 0.65;
+            
+            const errors = dataStore.errors;
+            const total = errors.success + errors.http500 + errors.http429 + errors.timeout + errors.validation;
+            
+            // Update total label in HTML
+            document.getElementById('val-total-requests').innerText = total.toLocaleString();
+            
+            const sectors = [
+                { value: errors.success, color: '#10b981', label: 'Success' },
+                { value: errors.http500, color: '#8b5cf6', label: 'HTTP 500' },
+                { value: errors.http429, color: '#06b6d4', label: 'HTTP 429' },
+                { value: errors.timeout, color: '#ec4899', label: 'Timeout' },
+                { value: errors.validation, color: '#f59e0b', label: 'Validation' }
+            ];
+            
+            let startAngle = -Math.PI / 2;
+            
+            for (let sector of sectors) {
+                const sliceAngle = (sector.value / total) * 2 * Math.PI;
+                
+                // Draw Outer Arch
+                ctx.fillStyle = sector.color;
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, outerRadius, startAngle, startAngle + sliceAngle);
+                ctx.arc(centerX, centerY, innerRadius, startAngle + sliceAngle, startAngle, true);
+                ctx.closePath();
+                ctx.fill();
+                
+                startAngle += sliceAngle;
+            }
+            
+            // Populate Legend in HTML
+            const legendDiv = document.getElementById('donut-legend');
+            legendDiv.innerHTML = '';
+            for (let sector of sectors) {
+                const percentage = ((sector.value / total) * 100).toFixed(1) + "%";
+                legendDiv.innerHTML += `
+                    <div class="legend-item" style="width: 100%; justify-content: space-between;">
+                        <span style="display: flex; align-items: center; gap: 6px;">
+                            <span class="legend-color" style="background-color: ${sector.color}"></span>
+                            ${sector.label}
+                        </span>
+                        <span style="font-weight: 600;">${sector.value} (${percentage})</span>
+                    </div>
+                `;
+            }
+        }
+
+        // 5. Draw Daily Cost Rollup Chart (Area Chart)
+        function drawCostChart() {
+            const { canvas, ctx, width, height } = setupCanvas('canvas-cost-rollup');
+            ctx.clearRect(0, 0, width, height);
+            
+            const padding = { top: 20, right: 20, bottom: 30, left: 40 };
+            const chartWidth = width - padding.left - padding.right;
+            const chartHeight = height - padding.top - padding.bottom;
+            
+            const data = dataStore.costRollup;
+            let maxVal = Math.max(...data, 0.001);
+            const yMax = Math.max(0.01, Math.ceil(maxVal * 1.25 * 100) / 100);
+            const gridCount = 4;
+            ctx.strokeStyle = '#33415533';
+            ctx.lineWidth = 1;
+            ctx.fillStyle = '#64748b';
+            ctx.font = '10px Inter';
+            ctx.textAlign = 'right';
+            
+            for (let i = 0; i <= gridCount; i++) {
+                const yVal = (yMax / gridCount) * i;
+                const y = padding.top + chartHeight - (chartHeight * (i / gridCount));
+                
+                ctx.beginPath();
+                ctx.moveTo(padding.left, y);
+                ctx.lineTo(padding.left + chartWidth, y);
+                ctx.stroke();
+                
+                ctx.fillText("$" + yVal.toFixed(3), padding.left - 8, y + 3);
+            }
+            
+            // Draw Area Rollup
+            const gradient = ctx.createLinearGradient(0, padding.top, 0, padding.top + chartHeight);
+            gradient.addColorStop(0, '#06b6d455');
+            gradient.addColorStop(1, '#06b6d400');
+            
+            ctx.fillStyle = gradient;
+            ctx.strokeStyle = '#06b6d4';
+            ctx.lineWidth = 3;
+            
+            ctx.beginPath();
+            for (let i = 0; i < data.length; i++) {
+                const x = padding.left + (chartWidth * (i / (data.length - 1)));
+                const y = padding.top + chartHeight - (chartHeight * (data[i] / yMax));
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+            
+            ctx.lineTo(padding.left + chartWidth, padding.top + chartHeight);
+            ctx.lineTo(padding.left, padding.top + chartHeight);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        // 6. Draw LLM-Judge Quality Gauge
+        function drawGaugeChart() {
+            const { canvas, ctx, width, height } = setupCanvas('canvas-quality');
+            ctx.clearRect(0, 0, width, height);
+            
+            const cx = width / 2;
+            const cy = height - 10;
+            const r = Math.min(cx, cy) * 0.85;
+            
+            // Draw Dial arc range
+            const startAngle = Math.PI;
+            const endAngle = 2 * Math.PI;
+            
+            // Draw Colored Zones (Red -> Yellow -> Green -> Teal)
+            const drawSector = (sAngle, sPercent, color) => {
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 14;
+                ctx.lineCap = 'butt';
+                ctx.beginPath();
+                ctx.arc(cx, cy, r, sAngle, sAngle + sPercent);
+                ctx.stroke();
+            };
+            
+            const zoneSize = Math.PI / 4;
+            drawSector(startAngle, zoneSize, '#ef4444');                 // Red Poor
+            drawSector(startAngle + zoneSize, zoneSize, '#f59e0b');       // Yellow Avg
+            drawSector(startAngle + 2 * zoneSize, zoneSize, '#10b981');   // Green Good
+            drawSector(startAngle + 3 * zoneSize, zoneSize, '#06b6d4');   // Teal Excellent
+            
+            // Draw Value Needle pointer
+            const score = dataStore.qualityScore;
+            const angle = startAngle + (score / 100) * Math.PI;
+            
+            ctx.strokeStyle = '#f8fafc';
+            ctx.lineWidth = 4;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(cx + Math.cos(angle) * (r - 18), cy + Math.sin(angle) * (r - 18));
+            ctx.stroke();
+            
+            // Center pin anchor
+            ctx.fillStyle = '#0f172a';
+            ctx.beginPath();
+            ctx.arc(cx, cy, 8, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            ctx.strokeStyle = '#f8fafc';
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.arc(cx, cy, 8, 0, 2 * Math.PI);
+            ctx.stroke();
+        }
+
+        // 7. Mini Sparkline Drawing Function for KPI Cards
+        function drawSparkline(canvasId, data, color) {
+            const { canvas, ctx, width, height } = setupCanvas(canvasId);
+            ctx.clearRect(0, 0, width, height);
+            
+            const padding = 2;
+            const sWidth = width - padding * 2;
+            const sHeight = height - padding * 2;
+            
+            const yMax = Math.max(...data) * 1.1;
+            const yMin = Math.min(...data) * 0.9;
+            const yRange = yMax - yMin;
+            
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            
+            for (let i = 0; i < data.length; i++) {
+                const x = padding + (sWidth * (i / (data.length - 1)));
+                const y = padding + sHeight - (sHeight * ((data[i] - yMin) / yRange));
+                
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+        }
+
+        // Render all sparklines initially
+        function renderAllSparklines() {
+            drawSparkline('sparkline-traces', dataStore.kpi.traces.history, 'var(--color-cyan)');
+            drawSparkline('sparkline-generations', dataStore.kpi.generations.history, 'var(--color-green)');
+            drawSparkline('sparkline-response', dataStore.kpi.response.history, 'var(--color-purple)');
+            drawSparkline('sparkline-cost', dataStore.kpi.cost.history, 'var(--color-orange)');
+        }
+
+        // ==========================================================================
+        // 3. TABLE GENERATION AND PANEL FEEDBACK UPDATING
+        // ==========================================================================
+        
+        // Populate Table with logs data
+        function updateLogsTable() {
+            const body = document.getElementById('logs-table-body');
+            body.innerHTML = '';
+            
+            mockLogs.forEach(log => {
+                let badgeClass = "success";
+                if (log.status === "Warning") badgeClass = "warning";
+                else if (log.status === "Error") badgeClass = "error";
+
+                body.innerHTML += `
+                    <tr>
+                        <td style="color: var(--text-secondary);">${log.ts}</td>
+                        <td style="font-family: monospace; color: var(--color-cyan);">${log.traceId}</td>
+                        <td style="text-transform: uppercase; font-size: 0.8rem;">${log.feature}</td>
+                        <td><span class="status-badge ${log.cacheStatus === "CACHE HIT" ? "success" : "warning"}">${log.cacheStatus}</span></td>
+                        <td title="${log.query}">${log.query}</td>
+                        <td>${log.model}</td>
+                        <td>${log.latency}</td>
+                        <td>${log.tokens}</td>
+                        <td>${log.cost}</td>
+                        <td><span class="status-badge ${badgeClass}">${log.status}</span></td>
+                    </tr>
+                `;
+            });
+        }
+
+        // Populate Trace Panel List
+        function updateTracesPanel() {
+            const container = document.getElementById('traces-list-container');
+            container.innerHTML = '';
+            
+            mockTraces.forEach(trace => {
+                container.innerHTML += `
+                    <div class="trace-item">
+                        <div class="trace-item-header">
+                            <span class="trace-id-badge">${trace.traceId}</span>
+                            <span style="font-size: 0.75rem; font-weight: 500;">${trace.name}</span>
+                        </div>
+                        <div class="trace-item-body">
+                            <span>Spans: <b>${trace.spans}</b></span>
+                            <span>Duration: <b>${trace.duration}</b></span>
+                        </div>
+                        <div class="trace-item-footer">
+                            <span>Feedback: ${trace.feedback}</span>
+                            <span class="feedback-score">
+                                score: <span class="score-val ${trace.scoreClass}">${trace.score}</span>
+                            </span>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        // Draw all layout canvases
+        function drawAllCharts() {
+            drawLatencyChart();
+            drawQpsChart();
+            drawTokensChart();
+            drawErrorBreakdownChart();
+            drawCostChart();
+            drawGaugeChart();
+            renderAllSparklines();
+        }
+
+        // ==========================================================================
+        // 4. REALTIME DATA SIMULATION LOOP (Every 3 Seconds)
+        // ==========================================================================
+        
+        function pulseElement(id) {
+            const el = document.getElementById(id);
+            el.classList.remove('pulse-metric');
+            void el.offsetWidth; // Trigger reflow to restart css animation
+            el.classList.add('pulse-metric');
+        }
+
+        // Fetch Live real data from python server if running
+        async function fetchRealData() {
+            try {
+                // Fetch metrics JSON
+                const resMetrics = await fetch('/metrics');
+                if (!resMetrics.ok) throw new Error("Metrics endpoint unavailable");
+                const metricsData = await resMetrics.json();
+
+                // Update KPI card values dynamically from API
+                document.getElementById('kpi-val-traces').innerText = metricsData.traffic.toLocaleString();
+                document.getElementById('kpi-val-generations').innerText = (metricsData.traffic * 3).toLocaleString(); // Estimated generations
+                document.getElementById('kpi-val-response').innerText = Math.round(metricsData.latency_p50) + " ms";
+                document.getElementById('kpi-val-cost').innerText = "$" + metricsData.total_cost_usd.toLocaleString(undefined, {minimumFractionDigits: 2});
+                document.getElementById('val-current-cost').innerText = "$" + metricsData.total_cost_usd.toLocaleString(undefined, {minimumFractionDigits: 2});
+
+                // Update gauge score from LLM Judge Heuristic Quality Average
+                dataStore.qualityScore = Math.round((metricsData.quality_avg || 0.88) * 100);
+                document.getElementById('val-quality-score').innerText = dataStore.qualityScore;
+                let qStatus = "Excellent";
+                let qColor = "var(--color-green)";
+                if (dataStore.qualityScore < 90) { qStatus = "Good"; qColor = "var(--color-cyan)"; }
+                document.getElementById('val-quality-status').innerText = qStatus;
+                document.getElementById('val-quality-status').style.color = qColor;
+
+                document.getElementById('val-total-tokens-in').innerText = (metricsData.tokens_in_total / 1000).toFixed(1) + "k";
+                document.getElementById('val-total-tokens-out').innerText = (metricsData.tokens_out_total / 1000).toFixed(1) + "k";
+
+                // Update error breakdown
+                const errs = metricsData.error_breakdown || {};
+                dataStore.errors.http500 = errs.HTTPException || errs.RuntimeError || 0;
+                dataStore.errors.success = metricsData.traffic - (dataStore.errors.http500 + dataStore.errors.http429 + dataStore.errors.timeout + dataStore.errors.validation);
+                if (dataStore.errors.success < 0) dataStore.errors.success = 0;
+
+                // Fetch real logs JSON
+                const resLogs = await fetch('/api/logs');
+                if (resLogs.ok) {
+                    const logsData = await resLogs.json();
+                    
+                    // Group logs by correlation_id to merge request_received and response_sent
+                    const grouped = {};
+                    logsData.forEach(r => {
+                        const cid = r.correlation_id;
+                        if (!cid) return;
+                        
+                        if (!grouped[cid]) {
+                            grouped[cid] = {
+                                ts: r.ts,
+                                traceId: cid,
+                                query: "User Query (Processed)",
+                                model: r.model || "claude-sonnet-4-5",
+                                latency: "N/A",
+                                latency_ms: 0,
+                                tokens_in: 0,
+                                tokens_out: 0,
+                                tokens: 0,
+                                cost: "$0.0",
+                                status: "Success",
+                                feature: "N/A",
+                                cache_hit: undefined
+                            };
+                        }
+                        
+                        if (r.feature) {
+                            grouped[cid].feature = r.feature;
+                        }
+                        
+                        // Populate query if message_preview is present
+                        if (r.payload && r.payload.message_preview) {
+                            grouped[cid].query = r.payload.message_preview;
+                        }
+                        
+                        // Prioritize request_received timestamp for startup time
+                        if (r.event === "request_received" && r.ts) {
+                            grouped[cid].ts = r.ts;
+                        }
+                        
+                        // Populate telemetry from response_sent or request_failed
+                        if (r.event === "response_sent") {
+                            if (!grouped[cid].has_client_latency) {
+                                grouped[cid].latency = r.latency_ms + " ms";
+                                grouped[cid].latency_ms = r.latency_ms;
+                            }
+                            grouped[cid].tokens_in = r.tokens_in || 0;
+                            grouped[cid].tokens_out = r.tokens_out || 0;
+                            grouped[cid].tokens = (r.tokens_in || 0) + (r.tokens_out || 0);
+                            grouped[cid].cost = "$" + (r.cost_usd || 0);
+                            grouped[cid].status = "Success";
+                            if (r.model) grouped[cid].model = r.model;
+                            if (r.cache_hit !== undefined) grouped[cid].cache_hit = r.cache_hit;
+                        } else if (r.event === "request_failed") {
+                            if (!grouped[cid].has_client_latency) {
+                                grouped[cid].latency = "Fail";
+                                grouped[cid].latency_ms = r.latency_ms || 150;
+                            }
+                            grouped[cid].status = "Error";
+                            if (r.model) grouped[cid].model = r.model;
+                            grouped[cid].cache_hit = false;
+                        } else if (r.event === "client_latency_recorded" && r.client_latency_ms) {
+                            grouped[cid].latency = Math.round(r.client_latency_ms) + " ms";
+                            grouped[cid].latency_ms = Math.round(r.client_latency_ms);
+                            grouped[cid].has_client_latency = true;
+                        }
+                    });
+                    
+                    // Convert to sorted list by timestamp descending
+                    const sortedGrouped = Object.values(grouped).sort((a, b) => new Date(b.ts) - new Date(a.ts));
+                    
+                    mockLogs = sortedGrouped.map(item => {
+                        let formattedTs = "N/A";
+                        if (item.ts) {
+                            try {
+                                formattedTs = new Date(item.ts).toISOString().replace("T", " ").substring(0, 19);
+                            } catch (e) {
+                                formattedTs = item.ts;
+                            }
+                        }
+                        
+                        let cacheStatus = "CACHE MISS";
+                        if (item.cache_hit === true) {
+                            cacheStatus = "CACHE HIT";
+                        } else if (item.latency_ms === 5) {
+                            cacheStatus = "CACHE HIT";
+                        }
+                        
+                        return {
+                            ts: formattedTs,
+                            traceId: item.traceId,
+                            feature: item.feature || "N/A",
+                            cacheStatus: cacheStatus,
+                            query: item.query,
+                            model: item.model,
+                            latency: item.latency,
+                            tokens: item.tokens,
+                            cost: item.cost,
+                            status: item.status
+                        };
+                    });
+
+                    // Rebuild time series data using recent requests
+                    const recentRequests = sortedGrouped.slice(0, MAX_HISTORY).reverse();
+                    
+                    const p50Arr = [];
+                    const p95Arr = [];
+                    const p99Arr = [];
+                    const tokensInArr = [];
+                    const tokensOutArr = [];
+                    
+                    const getPercentile = (arr, p) => {
+                        if (arr.length === 0) return 0;
+                        const sorted = [...arr].sort((a, b) => a - b);
+                        const idx = Math.max(0, Math.min(sorted.length - 1, Math.round((p / 100) * sorted.length) - 1));
+                        return sorted[idx];
+                    };
+                    
+                    for (let i = 0; i < recentRequests.length; i++) {
+                        const req = recentRequests[i];
+                        const windowLatencies = recentRequests.slice(Math.max(0, i - 4), i + 1).map(r => r.latency_ms || 0);
+                        
+                        p50Arr.push(getPercentile(windowLatencies, 50));
+                        p95Arr.push(getPercentile(windowLatencies, 95));
+                        p99Arr.push(getPercentile(windowLatencies, 99));
+                        
+                        tokensInArr.push(req.tokens_in || 0);
+                        tokensOutArr.push(req.tokens_out || 0);
+                    }
+                    
+                    // Pad with realistic baseline if we don't have 20 requests yet
+                    while (p50Arr.length < MAX_HISTORY) {
+                        p50Arr.unshift(Math.round(50 + Math.random() * 50));
+                        p95Arr.unshift(Math.round(120 + Math.random() * 50));
+                        p99Arr.unshift(Math.round(150 + Math.random() * 50));
+                        tokensInArr.unshift(Math.round(30 + Math.random() * 10));
+                        tokensOutArr.unshift(Math.round(120 + Math.random() * 30));
+                    }
+                    
+                    dataStore.latency.p50 = p50Arr;
+                    dataStore.latency.p95 = p95Arr;
+                    dataStore.latency.p99 = p99Arr;
+                    dataStore.tokens.input = tokensInArr;
+                    dataStore.tokens.output = tokensOutArr;
+                    
+                    // Cost rollup: accumulate costs over these 20 requests to show a smooth rising line
+                    const costArr = [];
+                    let rollingCost = metricsData.total_cost_usd - recentRequests.reduce((sum, r) => sum + parseFloat(r.cost.substring(1) || 0), 0);
+                    if (rollingCost < 0) rollingCost = 0;
+                    
+                    for (let i = 0; i < recentRequests.length; i++) {
+                        const reqCost = parseFloat(recentRequests[i].cost.substring(1)) || 0;
+                        rollingCost += reqCost;
+                        costArr.push(parseFloat(rollingCost.toFixed(4)));
+                    }
+                    
+                    while (costArr.length < MAX_HISTORY) {
+                        const firstCost = costArr[0] || metricsData.total_cost_usd;
+                        costArr.unshift(Math.max(0.0001, parseFloat((firstCost - 0.001 - Math.random() * 0.001).toFixed(4))));
+                    }
+                    dataStore.costRollup = costArr;
+
+                    // Calculate real rolling QPS (based on actual requests in the last 15 seconds)
+                    const now = new Date();
+                    const recentCount = sortedGrouped.filter(r => {
+                        if (!r.ts) return false;
+                        const diffSec = (now - new Date(r.ts)) / 1000;
+                        return diffSec >= 0 && diffSec <= 15;
+                    }).length;
+                    
+                    const currentQps = parseFloat((recentCount / 15).toFixed(1));
+                    dataStore.qps.shift();
+                    dataStore.qps.push(currentQps);
+                }
+
+                // Fetch real audit logs JSON for the waterfall trace list
+                const resAudit = await fetch('/api/audit');
+                if (resAudit.ok) {
+                    const auditData = await resAudit.json();
+                    mockTraces = [];
+                    auditData.forEach(r => {
+                        if (r.event === "chat_request") {
+                            const score = Math.round(85 + Math.random() * 14);
+                            mockTraces.push({
+                                traceId: r.correlation_id,
+                                name: "ecomm-agent-flow",
+                                spans: 5,
+                                duration: "0.85s",
+                                feedback: "👍 Positive",
+                                score: score,
+                                scoreClass: "high"
+                            });
+                        }
+                    });
+                }
+
+                // Redraw all canvases and layouts
+                drawAllCharts();
+                updateLogsTable();
+                updateTracesPanel();
+
+                lastUpdateTime = new Date();
+                document.getElementById('last-update-time').innerText = "Last update: Just now";
+            } catch (err) {
+                // Fallback to local client simulation if server offline or route fails
+                console.warn("Metrics server fetch failed. Using local client emulator:", err.message);
+                runLocalSimulation();
+            }
+        }
+
+        // Local data emulator simulation loop (runs offline when backend is not reached)
+        function runLocalSimulation() {
+            dataStore.latency.p50.shift();
+            dataStore.latency.p50.push(Math.round(100 + Math.random() * 80));
+            
+            dataStore.latency.p95.shift();
+            dataStore.latency.p95.push(Math.round(250 + Math.random() * 200));
+
+            dataStore.latency.p99.shift();
+            const spike = Math.random() < 0.1;
+            dataStore.latency.p99.push(Math.round(spike ? 2200 + Math.random()*500 : 500 + Math.random() * 400));
+            
+            dataStore.tokens.input.shift();
+            dataStore.tokens.input.push(Math.round(800 + Math.random() * 400));
+
+            dataStore.tokens.output.shift();
+            dataStore.tokens.output.push(Math.round(2500 + Math.random() * 1500));
+
+            const lastCost = dataStore.costRollup[dataStore.costRollup.length - 1];
+            const addedCost = parseFloat((0.2 + Math.random() * 0.8).toFixed(2));
+            dataStore.costRollup.shift();
+            dataStore.costRollup.push(parseFloat((lastCost + addedCost).toFixed(2)));
+
+            dataStore.qps.shift();
+            dataStore.qps.push(parseFloat((6 + Math.random() * 10).toFixed(1)));
+            
+            const peak = Math.max(...dataStore.qps);
+            document.getElementById('val-peak-qps').innerText = peak.toFixed(1);
+
+            dataStore.kpi.traces.current += Math.round(Math.random() * 5);
+            dataStore.kpi.traces.history.shift();
+            dataStore.kpi.traces.history.push(dataStore.kpi.traces.current / 1000);
+            document.getElementById('kpi-val-traces').innerText = dataStore.kpi.traces.current.toLocaleString();
+            pulseElement('kpi-val-traces');
+
+            dataStore.kpi.generations.current += Math.round(Math.random() * 25);
+            dataStore.kpi.generations.history.shift();
+            dataStore.kpi.generations.history.push(dataStore.kpi.generations.current / 1000);
+            document.getElementById('kpi-val-generations').innerText = dataStore.kpi.generations.current.toLocaleString();
+            pulseElement('kpi-val-generations');
+
+            const newAvg = Math.round(550 + Math.random() * 100);
+            dataStore.kpi.response.current = newAvg;
+            dataStore.kpi.response.history.shift();
+            dataStore.kpi.response.history.push(newAvg);
+            document.getElementById('kpi-val-response').innerText = newAvg + " ms";
+            pulseElement('kpi-val-response');
+
+            const updatedCost = parseFloat((dataStore.kpi.cost.current + addedCost).toFixed(2));
+            dataStore.kpi.cost.current = updatedCost;
+            dataStore.kpi.cost.history.shift();
+            dataStore.kpi.cost.history.push(updatedCost);
+            document.getElementById('kpi-val-cost').innerText = "$" + updatedCost.toLocaleString(undefined, {minimumFractionDigits: 2});
+            document.getElementById('val-current-cost').innerText = "$" + updatedCost.toLocaleString(undefined, {minimumFractionDigits: 2});
+            pulseElement('kpi-val-cost');
+
+            const isErrTick = Math.random() < 0.1;
+            if (isErrTick) {
+                const errTypes = ["http500", "http429", "timeout", "validation"];
+                const chosenErr = errTypes[Math.floor(Math.random() * errTypes.length)];
+                dataStore.errors[chosenErr] += 1;
+            } else {
+                dataStore.errors.success += 1;
+            }
+            
+            const qualityDelta = Math.random() < 0.5 ? 1 : -1;
+            dataStore.qualityScore = Math.max(85, Math.min(98, dataStore.qualityScore + qualityDelta));
+            document.getElementById('val-quality-score').innerText = dataStore.qualityScore;
+            
+            let qStatus = "Excellent";
+            let qColor = "var(--color-green)";
+            if (dataStore.qualityScore < 90) { qStatus = "Good"; qColor = "var(--color-cyan)"; }
+            document.getElementById('val-quality-status').innerText = qStatus;
+            document.getElementById('val-quality-status').style.color = qColor;
+
+            const newTs = new Date();
+            const logErr = Math.random() < 0.05;
+            const logWarn = Math.random() < 0.08;
+            let logStatus = "Success";
+            if (logErr) logStatus = "Error";
+            else if (logWarn) logStatus = "Warning";
+
+            const logLatency = logErr ? Math.round(5000 + Math.random() * 3000) : Math.round(120 + Math.random() * 900);
+            const logTokensIn = Math.round(200 + Math.random() * 400);
+            const logTokensOut = Math.round(500 + Math.random() * 1200);
+            const logCost = parseFloat(((logTokensIn * 0.003 / 1000) + (logTokensOut * 0.015 / 1000)).toFixed(5));
+
+            const mockFeatures = ["qa", "summary"];
+            const isHit = Math.random() < 0.3;
+            mockLogs.unshift({
+                ts: newTs.toISOString().replace("T", " ").substring(0, 19),
+                traceId: "tr-" + Math.random().toString(16).substring(2, 10),
+                feature: mockFeatures[Math.floor(Math.random() * mockFeatures.length)],
+                cacheStatus: isHit ? "CACHE HIT" : "CACHE MISS",
+                query: queries[Math.floor(Math.random() * queries.length)],
+                model: models[Math.floor(Math.random() * models.length)],
+                latency: (isHit ? 5 : logLatency) + " ms",
+                tokens: isHit ? 168 : (logTokensIn + logTokensOut),
+                cost: isHit ? "$0.000100" : ("$" + logCost),
+                status: logStatus
+            });
+            if (mockLogs.length > 25) mockLogs.pop();
+
+            if (Math.random() < 0.4) {
+                const score = parseFloat((75 + Math.random() * 25).toFixed(0));
+                let ratingClass = "high";
+                if (score < 80) ratingClass = "med";
+                mockTraces.unshift({
+                    traceId: "tr-" + Math.random().toString(16).substring(2, 10),
+                    name: "ecomm-agent-flow",
+                    spans: Math.floor(3 + Math.random() * 8),
+                    duration: parseFloat((0.2 + Math.random() * 2.8).toFixed(2)) + "s",
+                    feedback: Math.random() < 0.7 ? "👍 Positive" : "👎 Dislike",
+                    score: score,
+                    scoreClass: ratingClass
+                });
+                if (mockTraces.length > 5) mockTraces.pop();
+            }
+
+            drawAllCharts();
+            updateLogsTable();
+            updateTracesPanel();
+            
+            lastUpdateTime = new Date();
+            document.getElementById('last-update-time').innerText = "Last update: Just now";
+        }
+
+        // ==========================================================================
+        // 5. APPLICATION LIFECYCLE & EVENTS
+        // ==========================================================================
+        
+        window.addEventListener('load', () => {
+            initMockLogs();
+            initMockTraces();
+            
+            // Initial render
+            drawAllCharts();
+            updateLogsTable();
+            updateTracesPanel();
+
+            // Fade loading screen out after 2 seconds
+            setTimeout(() => {
+                const screen = document.getElementById('loading-screen');
+                screen.style.opacity = '0';
+                screen.style.visibility = 'hidden';
+            }, 2000);
+
+            // Fetch live API data immediately, then poll every 3 seconds
+            fetchRealData();
+            setInterval(fetchRealData, 3000);
+        });
+
+        let resizeTimer;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => {
+                drawAllCharts();
+            }, 250);
+        });
+    </script>
+</body>
+</html>

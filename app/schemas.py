@@ -21,6 +21,7 @@ class ChatResponse(BaseModel):
     tokens_out: int
     cost_usd: float
     quality_score: float
+    cache_hit: bool
 
 
 class LogRecord(BaseModel):
@@ -39,6 +40,12 @@ class LogRecord(BaseModel):
     tokens_in: int | None = None
     tokens_out: int | None = None
     cost_usd: float | None = None
+    cache_hit: bool | None = None
     error_type: str | None = None
     tool_name: str | None = None
     payload: dict[str, Any] | None = None
+
+
+class ClientLatencyRequest(BaseModel):
+    correlation_id: str
+    client_latency_ms: float

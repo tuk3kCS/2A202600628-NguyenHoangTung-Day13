@@ -19,6 +19,74 @@ CACHE_HITS: int = 0
 CACHE_MISSES: int = 0
 
 
+def load_initial_metrics() -> None:
+    import json
+    from pathlib import Path
+    
+    path = Path("data/logs.jsonl")
+    if not path.exists():
+        return
+        
+    global TRAFFIC, CACHE_HITS, CACHE_MISSES, TOOL_CALLS, TOOL_SUCCESSES
+    
+    REQUEST_LATENCIES.clear()
+    REQUEST_TTFTS.clear()
+    REQUEST_COSTS.clear()
+    REQUEST_TOKENS_IN.clear()
+    REQUEST_TOKENS_OUT.clear()
+    QUALITY_SCORES.clear()
+    ERRORS.clear()
+    TRAFFIC = 0
+    CACHE_HITS = 0
+    CACHE_MISSES = 0
+    TOOL_CALLS = 0
+    TOOL_SUCCESSES = 0
+    
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                try:
+                    record = json.loads(line)
+                except Exception:
+                    continue
+                
+                if record.get("event") == "request_failed" and record.get("service") == "api":
+                    error_type = record.get("error_type", "UnknownError")
+                    ERRORS[error_type] += 1
+                
+                elif record.get("event") == "response_sent" and record.get("service") == "api":
+                    latency = record.get("latency_ms", 0)
+                    ttft = record.get("ttft_ms", 0)
+                    cost = record.get("cost_usd", 0.0)
+                    t_in = record.get("tokens_in", 0)
+                    t_out = record.get("tokens_out", 0)
+                    quality = record.get("quality_score", 0.8)
+                    
+                    TRAFFIC += 1
+                    REQUEST_LATENCIES.append(latency)
+                    REQUEST_TTFTS.append(ttft)
+                    REQUEST_COSTS.append(cost)
+                    REQUEST_TOKENS_IN.append(t_in)
+                    REQUEST_TOKENS_OUT.append(t_out)
+                    QUALITY_SCORES.append(quality)
+                    
+                    if latency == 5 and ttft == 2:
+                        CACHE_HITS += 1
+                    else:
+                        CACHE_MISSES += 1
+                        TOOL_CALLS += 1
+                        TOOL_SUCCESSES += 1
+    except Exception:
+        pass
+
+
+# Load metrics at module load time
+load_initial_metrics()
+
+
+
 def record_request(latency_ms: int, ttft_ms: int, cost_usd: float, tokens_in: int, tokens_out: int, quality_score: float) -> None:
     global TRAFFIC
     TRAFFIC += 1

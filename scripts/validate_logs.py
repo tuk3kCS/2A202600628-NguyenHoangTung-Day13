@@ -43,8 +43,9 @@ def main() -> None:
             if not ENRICHMENT_FIELDS.issubset(rec.keys()):
                 missing_enrichment += 1
 
-        # Check PII (naive check for @ or common test credit card)
-        raw = json.dumps(rec)
+        # Check PII (naive check for @ or common test credit card, excluding timestamp field to avoid microsecond false positives)
+        pii_check_rec = {k: v for k, v in rec.items() if k != "ts"}
+        raw = json.dumps(pii_check_rec)
         if "@" in raw or "4111" in raw:
             pii_hits.append(rec.get("event", "unknown"))
 

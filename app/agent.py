@@ -19,6 +19,7 @@ class AgentResult:
     tokens_out: int
     cost_usd: float
     quality_score: float
+    cache_hit: bool
 
 
 class LabAgent:
@@ -44,6 +45,21 @@ class LabAgent:
                 quality_score=cached_res.quality_score
             )
             metrics.record_tool_call(success=True)
+            
+            # Trace update for cache hit
+            langfuse_context.update_current_trace(
+                input=message,
+                output=cached_res.answer,
+                user_id=hash_user_id(user_id),
+                session_id=session_id,
+                tags=["lab", feature, active_model, "cache_hit"],
+            )
+            langfuse_context.update_current_observation(
+                input=message,
+                output=cached_res.answer,
+                metadata={"cache_hit": True}
+            )
+            
             return AgentResult(
                 answer=cached_res.answer,
                 latency_ms=5,
@@ -51,7 +67,8 @@ class LabAgent:
                 tokens_in=cached_res.tokens_in,
                 tokens_out=cached_res.tokens_out,
                 cost_usd=0.0001,
-                quality_score=cached_res.quality_score
+                quality_score=cached_res.quality_score,
+                cache_hit=True
             )
             
         metrics.record_cache(hit=False)
@@ -73,11 +90,15 @@ class LabAgent:
         cost_usd = self._estimate_cost(response.usage.input_tokens, response.usage.output_tokens, model=active_model)
 
         langfuse_context.update_current_trace(
+            input=message,
+            output=response.text,
             user_id=hash_user_id(user_id),
             session_id=session_id,
-            tags=["lab", feature, active_model],
+            tags=["lab", feature, active_model, "cache_miss"],
         )
         langfuse_context.update_current_observation(
+            input=message,
+            output=response.text,
             metadata={
                 "doc_count": len(docs),
                 "query_preview": summarize_text(message),
@@ -107,6 +128,7 @@ class LabAgent:
             tokens_out=response.usage.output_tokens,
             cost_usd=cost_usd,
             quality_score=quality_score,
+            cache_hit=False
         )
         
         self.cache[message] = res

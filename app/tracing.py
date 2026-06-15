@@ -2,23 +2,30 @@ from __future__ import annotations
 
 import os
 from typing import Any
+import langfuse
 
-try:
-    from langfuse.decorators import observe, langfuse_context
-except Exception:  # pragma: no cover
-    def observe(*args: Any, **kwargs: Any):
-        def decorator(func):
-            return func
-        return decorator
+# For langfuse >= 3.2.0, observe decorator and tracing capabilities are exposed directly on the root module or client
+observe = langfuse.observe
 
-    class _DummyContext:
-        def update_current_trace(self, **kwargs: Any) -> None:
-            return None
+class _LangfuseContextWrapper:
+    def update_current_trace(self, **kwargs: Any) -> None:
+        try:
+            client = langfuse.get_client()
+            if client:
+                client.update_current_trace(**kwargs)
+        except Exception:
+            pass
 
-        def update_current_observation(self, **kwargs: Any) -> None:
-            return None
+    def update_current_observation(self, **kwargs: Any) -> None:
+        try:
+            client = langfuse.get_client()
+            if client:
+                # Update span or generation if available in client context
+                client.update_current_span(**kwargs)
+        except Exception:
+            pass
 
-    langfuse_context = _DummyContext()
+langfuse_context = _LangfuseContextWrapper()
 
 
 def tracing_enabled() -> bool:
